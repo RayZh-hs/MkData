@@ -12,12 +12,16 @@ _gen_logger = logging.getLogger("generator")
 _gen_buffer = ""
 
 # + util funcs +
-def _gen_assign(_gen_var, _gen_val):
-    # assign a value to a variable in the local scope
+def _gen_assign(_gen_var: str, _gen_val: any) -> None:
+    """
+    assign a value to a variable in the local scope
+    """
     _gen_builtin_locals[_gen_var] = _gen_val
 
-def _gen_runeval(_gen_exp):
-    # run a python expression and return its value
+def _gen_runeval(_gen_exp: str) -> any:
+    """
+    run a python expression and return its value
+    """
     try:
         return eval(_gen_exp)
     except Exception as e:
@@ -26,8 +30,12 @@ def _gen_runeval(_gen_exp):
         exit(0)
 
 # + parser funcs +
-def _gen_gettype(_gen_from):
-    # type takes shape of [...] in the line
+def _gen_gettype(_gen_from: str) -> str:
+    """
+    locates the type of the output in a given line _gen_from
+    
+    the type takes shape of [...] in the line
+    """
     _gen_re_found = re.findall(r"\[.{1,}\]", _gen_from)
     if(len(_gen_re_found)==0):
         _gen_logger.warning("No type found in the line.")
@@ -39,14 +47,14 @@ def _gen_gettype(_gen_from):
         exit(0)
     return _gen_re_found[0][1:-1]
 
-def _gen_getassert(_gen_from):
+def _gen_getassert(_gen_from: str) -> str:
     # assertions take shape of @...@, within which is a python expression
     _gen_re_found = re.findall(r"@.{1,}@", _gen_from)
     if(len(_gen_re_found)==0):
         return None
     return _gen_re_found[-1][1:-1]
 
-def _gen_getvarname(_gen_from):
+def _gen_getvarname(_gen_from: str) -> str:
     # the variable name is either undefined or the first word in the line
     # it is followed by the type
     _gen_re_found = re.findall(r".{0,}\[", _gen_from)
@@ -60,14 +68,14 @@ def _gen_getvarname(_gen_from):
         exit(0)
     return _gen_re_found
 
-def _gen_getconstraints(_gen_from):
+def _gen_getconstraints(_gen_from: str) -> str:
     # constraints are in the form of (...), within which are constraints
     _gen_re_found = re.findall(r"\(.{1,}\)", _gen_from)
     if(len(_gen_re_found)==0):
         return None
     return _gen_re_found[-1][1:-1]
 
-def _gen_getsuffix(_gen_from):
+def _gen_getsuffix(_gen_from: str) -> str:
     # suffixes are in the form of $..., where the '...' stands for a single char (default to $\n)
     _gen_re_found = re.findall(r"\$.{0,}", _gen_from)
     if(len(_gen_re_found)==0):
@@ -81,11 +89,11 @@ def _gen_getsuffix(_gen_from):
     return _gen_re_found
 
 # + generator sections +
-def main():
-    global _gen_path, _gen_logger, _gen_buffer, _gen_builtin_locals
+def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
+    global _gen_logger, _gen_buffer, _gen_builtin_locals
     logging.basicConfig(level=logging.DEBUG)
-    with open(_gen_path, 'r', encoding='utf-8') as _gen_file:
-        _gen_logger.debug(f"File {_gen_path} opened.")
+    with open(path, 'r', encoding='utf-8') as _gen_file:
+        _gen_logger.debug(f"File {path} opened.")
         _gen_lines = _gen_file.readlines()
 
     _gen_lines = [line.strip('\n') for line in _gen_lines]
@@ -164,8 +172,10 @@ def main():
             ...
         
         _gen_lines.pop(0)
-    pyperclip.copy(_gen_buffer)
-    _gen_logger.info("Buffer copied to clipboard.")
+    if(copy_to_clipboard):
+        pyperclip.copy(_gen_buffer)
+        _gen_logger.info("Buffer copied to clipboard.")
+    return _gen_buffer
 
 if __name__ == "__main__":
-    main()
+    _gen_process()
