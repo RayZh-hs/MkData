@@ -1,0 +1,9 @@
+#begin
+N [int] (2,6) $
+A [intlist N] (0,10) $
+B [intlist N] @i@ $
+#end
+
+6
+3 5 6 9 2 4
+0 1 2 3 4 5

@@ -6,7 +6,7 @@ import logging
 from ast import literal_eval
 
 _gen_path = os.path.abspath(os.path.dirname(__file__))+"\\templates\\"
-_gen_path+= "P1125.gen"
+_gen_path+= "Demo_01.gen"
 _gen_compact_length = 80
 _gen_builtin_locals = locals()
 _gen_logger = logging.getLogger("generator")
@@ -21,19 +21,18 @@ def _gen_preprocess_path(_gen_name: str) -> str:
     """
     return os.path.abspath(os.path.dirname(__file__))+"\\templates\\"+_gen_name
 
-
 def _gen_assign(_gen_var: str, _gen_val: any) -> None:
     """
     assign a value to a variable in the local scope
     """
     _gen_builtin_locals[_gen_var] = _gen_val
 
-def _gen_runeval(_gen_exp: str) -> any:
+def _gen_runeval(_gen_exp: str, localsdict:str|None=None) -> any:
     """
     run a python expression and return its value
     """
     try:
-        return eval(_gen_exp)
+        return eval(_gen_exp, globals(), localsdict)
     except Exception as e:
         _gen_logger.error("Failed to run the python expression.")
         _gen_logger.error("> "+_gen_exp)
@@ -86,6 +85,9 @@ def _gen_getassert(_gen_from: str) -> str:
 
     an `assertion` overrides every other expression in the line; 
     it takes shape of @...@, within which is a python expression
+
+    for lists,  single asserts @...@ determine each element;
+                double asserts @@...@@ determine the entire list/matrix
     """
     # assertions take shape of @...@, within which is a python expression
     _gen_re_found = re.findall(r"\@.{1,}\@", _gen_from)
@@ -112,13 +114,13 @@ def _gen_getvarname(_gen_from: str) -> str:
         exit(0)
     return _gen_re_found
 
-def _gen_getrange(_gen_from: str) -> str:
+def _gen_getrange(_gen_from: str, enforce_heading:bool=False) -> str:
     """
     identifies a range obj in _gen_from
 
     ranges are in the form of (... , ...), within which are two python expressions determining the lower and upper bounds
     """
-    _gen_re_found = re.findall(r"\(.{1,}\)", _gen_from)
+    _gen_re_found = re.findall(r"^[ ]*\(.{1,}\)" if enforce_heading else r"\(.{1,}\)", _gen_from)
     if(len(_gen_re_found)==0):
         return None
     return _gen_re_found[-1][1:-1]
@@ -188,6 +190,8 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
                 _gen_var_val = _gen_runeval(_gen_var_assert)
             else:
                 # find ranges where assertions aren't present
+                # changed
+                _gen_front = _gen_front[_gen_front.find("]")+1:]
                 _gen_var_constraints = _gen_getrange(_gen_front)
                 if(_gen_var_constraints != None):
                     # the range for an int should be in the form of (exp1,exp2)
@@ -200,7 +204,7 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
             if _gen_var_name != None:
                 _gen_assign(_gen_var_name, _gen_var_val)
                 _gen_logger.info(f"Assigned to local scope: {_gen_var_name} = {_gen_var_val}.")
-        
+
         # * intlist: generate a list of random integers
         elif(_gen_type[0:7] == "intlist"):
             # the type should be in the form of [intlist n], where n(an expression) is the length of the list
@@ -217,10 +221,17 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
             _gen_var_name = _gen_getvarname(_gen_front)
             _gen_var_assert = _gen_getassert(_gen_front)
             if(_gen_var_assert != None):
-                # using assertions, the user must match the length of the list to his/her input
-                _gen_var_val = _gen_runeval(_gen_var_assert)
+                # check for double assertions
+                _gen_var_assert = _gen_var_assert.strip()
+                if(_gen_var_assert[0]=='@' and _gen_var_assert[-1]=='@'):
+                    # using double assertions, the user must match the length of the list to his/her input
+                    _gen_var_val = _gen_runeval(_gen_var_assert.strip('@'))
+                else:
+                    # single assertions
+                    for i in range(_gen_var_len):
+                        _gen_var_val.append(_gen_runeval(_gen_var_assert, localsdict={'i': i}))
             else:
-                # otherwise, constraints are used to determine the values of the list
+                # otherwise, ranges are used to determine the values of the list
                 _gen_front = _gen_front[_gen_front.find("]")+1:]
                 _gen_var_constraints = _gen_getrange(_gen_front)
                 if(_gen_var_constraints != None):
@@ -250,10 +261,17 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
             _gen_var_name = _gen_getvarname(_gen_front)
             _gen_var_assert = _gen_getassert(_gen_front)
             if(_gen_var_assert != None):
-                # using assertions, the user must match the dimensions of the matrix to his/her input
-                _gen_var_val = _gen_runeval(_gen_var_assert)
+                if(_gen_var_assert[0]=='@' and _gen_var_assert[-1]=='@'):
+                    # using double assertions, the user must match the length of the list to his/her input
+                    _gen_var_val = _gen_runeval(_gen_var_assert.strip('@'))
+                else:
+                    # single assertions
+                    for i in range(_gen_var_dims[0]):
+                        _gen_var_val.append([])
+                        for j in range(_gen_var_dims[1]):
+                            _gen_var_val[i].append(_gen_runeval(_gen_var_assert, localsdict={'i':i, 'j':j}))
             else:
-                # otherwise, constraints are used to determine the values of the matrix
+                # otherwise, ranges are used to determine the values of the matrix
                 _gen_front = _gen_front[_gen_front.find("]")+1:]
                 _gen_var_constraints = _gen_getrange(_gen_front)
                 if(_gen_var_constraints != None):
@@ -290,7 +308,7 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
                 # in this case, the 'range' is (...), in which possible chars are listed
                 # use a-z,A-Z,0-9 for these special cases
                 # eg. (a-z0) will generate a random char from a-z and 0
-                _gen_var_constraints = _gen_getrange(_gen_front)
+                _gen_var_constraints = _gen_getrange(_gen_front, enforce_heading=False)
                 if(_gen_var_constraints == None):
                     _gen_logger.error("No ranges found in the line.")
                     _gen_logger.error("> "+_gen_front)
@@ -328,7 +346,13 @@ def _gen_process(copy_to_clipboard:bool=True, path:str=_gen_path) -> str:
             _gen_var_name = _gen_getvarname(_gen_front)
             _gen_var_assert = _gen_getassert(_gen_front)
             if(_gen_var_assert != None):
-                _gen_var_val = _gen_runeval(_gen_var_assert)
+                if(_gen_var_assert[0]=='@' and _gen_var_assert[-1]=='@'):
+                    # using double assertions, the user must match the length of the list to his/her input
+                    _gen_var_val = _gen_runeval(_gen_var_assert.strip('@'))
+                else:
+                    # single assertions
+                    for i in range(_gen_var_len):
+                        _gen_var_val.append(_gen_runeval(_gen_var_assert, localsdict={'i':i}))
             else:
                 _gen_front = _gen_front[_gen_front.find("]")+1:]
                 _gen_var_constraints = _gen_getrange(_gen_front)
