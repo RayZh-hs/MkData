@@ -1,9 +1,11 @@
 P1135 奇怪的电梯 数据生成器
 
-#begin
+#begin gen
 N [int] (1,50)
 A [int] (1,N)
 B [int] (1,N) $
 K [intlist N] (1,N) $
 #end
 
+16 4 1
+6 1 6 6 5 14 1 9 15 12 1 1 7 14 11 12

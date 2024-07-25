@@ -1,7 +1,7 @@
 from generator import _gen_logger, _gen_process, _gen_preprocess_path
 import logging
 
-name = "P1135.gen"
+name = "UVA1442.gen"
 copy = True
 
 if __name__ == '__main__':
